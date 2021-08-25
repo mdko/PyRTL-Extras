@@ -1,0 +1,5 @@
+.tox
+*.egg-info/
+scratch
+TODO
+__pycache__/

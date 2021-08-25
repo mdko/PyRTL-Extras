@@ -1,0 +1,11 @@
+pep8
+pylint
+astroid
+sphinx~=3.5
+sphinx_rtd_theme
+sphinx-hoverxref
+nose
+pyparsing
+six
+coverage
+pyrtl
