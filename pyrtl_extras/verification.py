@@ -1,8 +1,11 @@
-import pyrtl
+import subprocess
+import os
+import tempfile
 from inspect import signature
 import itertools 
+import pyrtl
 
-def equivalent_comb(f1, f2, bitwidths, **kwargs):
+def equivalent_comb_via_sim(f1, f2, bitwidths, **kwargs):
     """ Brute-force test two functions for equivalence by generating all possible values
         for each input and comparing the resulting output of each function. Requires
         that both functions have the same number and order of inputs and outputs.
@@ -62,3 +65,50 @@ def equivalent_comb(f1, f2, bitwidths, **kwargs):
                 print(f"{v1} != {v2} for input {input} (step #{stepn})")
     
     #sim.tracer.render_trace()
+
+def equivalent_seq_via_simulation(f1, f2, bitwidths, nsteps=None, **kwargs):
+    pass
+
+def equivalent_seq_via_cosa(f1, f2, bitwidths, **kwargs):
+    """ Check if two sequential circuits are equivalent by checking in CoSA """
+
+    def to_verilog(f):
+        def instantiate():
+            if isinstance(f, pyrtl.Block):
+                return f
+            elif callable(f):
+                b = pyrtl.Block()
+                with pyrtl.set_working_block(b):
+                    arg_wires = [pyrtl.Input(bitwidth=bw, name='in%d' % i) for i, bw in enumerate(bitwidths)]
+                    out = f(*arg_wires, **kwargs)
+                    if not isinstance(out, tuple):
+                        out = (out,)
+                    for n, o in enumerate(out):
+                        pyrtl.probe(o, f"out{n}")
+                return b
+            else:
+                raise pyrtl.PyrtlError("Expected a block or function to instantiate, got %s" % str(type(f)))
+
+        b = instantiate()
+        tmp_vd, tmp_verilog_path = tempfile.mkstemp(prefix='pyrtl_verilog', suffix='.v', text=True)
+        with open(tmp_verilog_path, "w") as f:
+            pyrtl.output_to_verilog(f, block=b)
+
+        return tmp_vd, tmp_verilog_path
+        
+    vfd1, vf1 = to_verilog(f1)
+    vfd2, vf2 = to_verilog(f2)
+
+    try:
+        res = subprocess.run([
+            "CoSA", "-i", vf1 + "[toplevel]",
+            "--equal-to", vf2 + "[toplevel]",
+            "--abstract-clock",
+            "--zero-init",
+    #        "--init outputs/tmp.init",
+            "--verification", "equivalence", "--prove", "-k", "10",
+        ]) #, capture_output=True, text=True)
+    except:
+        os.close(vfd1)
+        os.close(vfd2)
+    # assert ("Result: TRUE" in res.stdout.splitlines())
