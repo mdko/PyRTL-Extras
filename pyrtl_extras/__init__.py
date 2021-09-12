@@ -6,6 +6,7 @@ from .core import negate
 from .core import count_ones
 from .core import count_zeroes
 from .core import count_zeroes_from_end
+from .core import count_zeroes_from_end_fold
 
 from .format import binf
 

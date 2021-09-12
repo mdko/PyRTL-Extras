@@ -126,17 +126,37 @@ class TestCore(unittest.TestCase):
 
     def test_count_msb_zeroes(self):
         i = pyrtl.Input(8, 'i')
-        o = pe.count_zeroes_from_end(i)
+        #o = pe.count_zeroes_from_end(i)  # Has same functionality
+        o = pe.count_zeroes_from_end_fold(i)
         pyrtl.probe(o, 'o')
         sim = pyrtl.Simulation()
         sim.step_multiple({
             'i': [0b00000001, 0b10010011, 0b00100000, 0b01100011, 0b11111111, 0b00000000]
-        }, {
-            'o': [         7,          0,          2,          1,          0,          8]
         })
         # sim.tracer.render_trace(repr_per_name={
         #     'i': pe.binf(8, 8)
         # }, symbol_len=None)
+        self.assertEqual(
+            sim.tracer.trace['o'],
+            [7, 0, 2, 1, 0, 8]
+        )
+
+    def test_count_lsb_zeros(self):
+        i = pyrtl.Input(8, 'i')
+        #o = pe.count_zeroes_from_end(i, start='lsb')  # Has same functionality
+        o = pe.count_zeroes_from_end_fold(i, start='lsb')
+        pyrtl.probe(o, 'o')
+        sim = pyrtl.Simulation()
+        sim.step_multiple({
+            'i': [0b00000001, 0b10010100, 0b00100000, 0b01100010, 0b11111111, 0b00000000]
+        })
+        # sim.tracer.render_trace(repr_per_name={
+        #     'i': pe.binf(8, 8)
+        # }, symbol_len=None)
+        self.assertEqual(
+            sim.tracer.trace['o'],
+            [0, 2, 5, 1, 0, 8]
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -57,17 +57,27 @@ def negate(x):
 
 def count_ones(w):
     """ Count the number of one bits in a wire """
+    return reduce(operator.add, w)
+    # Could also do this:
     return pyrtl.tree_reduce(operator.add, w)
 
 def count_zeroes(w):
     return len(w) - count_ones(w)
 
-# def count_zeroes_from_end_fold(x, start='msb'):
-#     if start == 'msb':
-#         reduce(lambda found, x: ~found | (x == 0), x[::-1], False)
-#     elif start == 'lsb':
-#     else:
-#         raise pyrtl.PyrtlError('Invalid start parameter')
+# Two versions of the same function:
+#   - count_zeroes_from_end_fold()
+#   - count_zeroes_from_end()
+# Both are here just to see difference in programming complexity and generated netlist complexity
+
+def count_zeroes_from_end_fold(x, start='msb'):
+    def f(accum, x):
+        found, count = accum
+        is_zero = x == 0
+        to_add = ~found & is_zero
+        count = count + to_add
+        return (found | ~is_zero, count)
+    l = x[::-1] if start == 'msb' else x
+    return reduce(f, l, (pyrtl.as_wires(False), 0))[1]
 
 # NOTE: this is essentially a fold, so we could probably use the stdlib's functools.reduce function (see above)
 def count_zeroes_from_end(x, start='msb'):
