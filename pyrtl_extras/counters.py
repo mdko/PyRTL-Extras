@@ -1,53 +1,86 @@
 import pyrtl
-from pyrtl.helperfuncs import infer_val_and_bitwidth
 from pyrtl.pyrtlexceptions import PyrtlError
 
 from .core import gray_code
 
-def _base_counter(reset, bitwidth, start, stop, step, wrap):
-    """
-    :param reset:
-    :param bitwidth:
-    :param start: inclusive
-    :param stop: exclusive
-    :param step:
-    :param wrap:
-    """
-    # TODO insert some checks to make sure the values are reasonable
-    reset, wrap = pyrtl.as_wires(reset), pyrtl.as_wires(wrap)
-
-    cnt = pyrtl.Register(bitwidth=bitwidth)
-    done = (cnt + step) >= stop
-    with pyrtl.conditional_assignment:
-        with reset:
-            cnt.next |= start
-        with ~done:
-            cnt.next |= cnt + step
-        with wrap:
-            cnt.next |= start
-    return cnt, done
-
-def rtl_range(reset, start, stop, step=1):
-    """ A counter that counts in a range (akin to the normal range function in Python).
+# def rtl_range(reset, start=0, stop=None, step=1, wrap=False):
+# Use *args to emulate signature of normal Python range
+# TODO emit done on same cycle if `range(...)` would be empty
+# TODO determine if first cycle of counting should be on reset, or cycle after it
+def rtl_range(reset, *args, wrap=False):
+    """ A counter that counts in a range.
 
     :param reset: when to reset (i.e. "start") the counter
     :param start: the starting value of the counter (inclusive)
     :param stop: the stopping value of the counter (exclusive)
     :param step: the step size of the counter (defaults to 1)
+    :param wrap: if True, the counter will wrap around when it reaches the maximum/minimum
+        (depending on direction of counting)
     :return Tuple[Wire, Wire]: the counter value, and whether the current value is the
         highest it can be without exceeding the stopping value (i.e. if it's "done" counting)
 
-    This saturates, meaning it will stay at the stop value once reached.
-    """
-    if start > stop:
-        raise PyrtlError("start value must be less than or equal to stop value")
-    if start < 0:
-        raise PyrtlError("start value must be greater than or equal to 0")
-    if stop < 0:
-        raise PyrtlError("stop value must be greater than or equal to 0")
+    Protocol notes: The last value produced by rtl_range() is produced on the same cycle `done` goes high
+    for the first time. `done` stays high until `reset` is asserted again. If `done` is calculated
+    to be high at the same time `reset` is asserted high, that means there is nothing in the range.
 
-    _, bw = infer_val_and_bitwidth(stop)
-    return _base_counter(reset, bw, start, stop, step, False)
+    This should generally behave like a normal Python `range` function, with the exception
+    of needing a `reset` wire to know when to reset (i.e. start) the counter. So it should
+    work with a wide variety of start/stop/step values, including negative numbers.
+
+    If step is a wire and is has a zero value at the same time as `reset` is high,
+    weird things may happen (this would be a ValueError in a normal python `range()` call).
+
+    """
+    start, step = 0, 1
+    if len(args) == 1:
+        stop = args[0]
+    elif len(args) == 2:
+        start, stop = args
+    elif len(args) == 3:
+        start, stop, step = args
+    else:
+        raise PyrtlError(
+            "rtl_range takes 1 argument (stop), 2 arguments (start, stop), "
+            "or 3 arguments (start, stop, step)."
+        )
+
+    start = pyrtl.as_wires(start, signed=True)
+    stop = pyrtl.as_wires(stop, signed=True)
+    step = pyrtl.as_wires(step, signed=True)
+    reset = pyrtl.as_wires(reset)
+    wrap = pyrtl.as_wires(wrap)
+
+    if isinstance(step, pyrtl.Const) and step.val == 0:
+        raise pyrtl.PyrtlError("step value must be non-zero")
+
+    bitwidth = max(start.bitwidth, stop.bitwidth)
+    cnt = pyrtl.Register(bitwidth=bitwidth)
+    cnt_next = pyrtl.signed_add(cnt, step)
+
+    done = pyrtl.WireVector(bitwidth=1)
+    with pyrtl.conditional_assignment:
+        # NOTE: We need to check for reset so we don't mistakenly signal we're done
+        # before we've even started. Note that this creates a combinational dependency
+        # between reset and done, which may not be acceptable (i.e. to-port/from-port).
+        # A possible other way to handle this would be to have a separate register for
+        # the "started" and use that for determining this. The main issue that is trying
+        # to solve is comparing the value of cnt before it has been properly initialized.
+        # TODO maybe add with ~reset:
+        with pyrtl.signed_gt(step, 0):
+            # Going up
+            done |= pyrtl.signed_ge(cnt_next, stop)
+        with pyrtl.signed_lt(step, 0):
+            # Going down
+            done |= pyrtl.signed_le(cnt_next, stop)
+
+    with pyrtl.conditional_assignment:
+        with reset:
+            cnt.next |= start
+        with ~done:
+            cnt.next |= cnt_next
+        with wrap:
+            cnt.next |= start
+    return cnt, done
 
 def counter(reset, bitwidth=None, max=None, init=0, wrap_on_overflow=True):
     """ Standard counter that counts up.
@@ -70,7 +103,7 @@ def counter(reset, bitwidth=None, max=None, init=0, wrap_on_overflow=True):
     if bitwidth is None and max is None:
         raise PyrtlError("Either bitwidth or max value must be supplied")
     if max is not None:
-        _, bw = infer_val_and_bitwidth(max)
+        _, bw = pyrtl.infer_val_and_bitwidth(max, signed=True)
         if bitwidth is None:
             bitwidth = bw
         elif bitwidth < bw:
@@ -80,7 +113,7 @@ def counter(reset, bitwidth=None, max=None, init=0, wrap_on_overflow=True):
         max = 2 ** bitwidth - 1
 
     # max + 1 because the stop value is inclusive
-    return _base_counter(reset, bitwidth, init, max + 1, 1, wrap_on_overflow)
+    return rtl_range(reset, init, max + 1, 1, wrap=wrap_on_overflow)
 
 def down_counter(reset, bitwidth=None, init=None, min=0, wrap_on_underflow=True):
     """ Counter that counts down.
@@ -103,7 +136,7 @@ def down_counter(reset, bitwidth=None, init=None, min=0, wrap_on_underflow=True)
     if bitwidth is None and init is None:
         raise PyrtlError("Either bitwidth or init value must be supplied")
     if init is not None:
-        _, bw = infer_val_and_bitwidth(init)
+        _, bw = pyrtl.infer_val_and_bitwidth(init)
         if bitwidth is None:
             bitwidth = bw
         elif bitwidth < bw:
@@ -112,9 +145,8 @@ def down_counter(reset, bitwidth=None, init=None, min=0, wrap_on_underflow=True)
         assert bitwidth is not None
         init = 2 ** bitwidth - 1
 
-    # TODO check how min is used, since exclusive
-    # TODO change + in _base_counter to signed_add?
-    return _base_counter(reset, bitwidth, init, min, -1, wrap_on_underflow)
+    # min - 1 because the stop value is exclusive
+    return rtl_range(reset, init, min-1, -1, wrap=wrap_on_underflow)
 
 
 def gray_code_counter(reset, bitwidth):
