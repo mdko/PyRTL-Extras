@@ -10,19 +10,34 @@ class TestCounters(unittest.TestCase):
 
     def test_counter(self):
         reset = pyrtl.Input(1, "reset")
-        value = pe.counter(reset, 4)
+        value, done = pe.counter(reset, 4)
         pyrtl.probe(value, 'value')
+        pyrtl.probe(done, 'done')
         sim = pyrtl.Simulation()
         sim.step_multiple({
             'reset': [1] + [0] * 20,
         })
-        # sim.tracer.render_trace()
+        #sim.tracer.render_trace()
         self.assertEqual(sim.tracer.trace['value'], [0] + list(range(16)) + list(range(4)))
+        self.assertEqual(sim.tracer.trace['done'], [0] + [0]*15 + [1] + [0]*4)
+
+    def test_rtl_range(self):
+        reset = pyrtl.Input(1, "reset")
+        value, done = pe.rtl_range(reset, 2, 13, 3)  # 2, 5, 8, 11, 11, 11, ...
+        pyrtl.probe(value, 'value')
+        pyrtl.probe(done, 'done')
+        sim = pyrtl.Simulation()
+        sim.step_multiple({
+            'reset': [1] + [0] * 8,
+        })
+        #sim.tracer.render_trace()
+        self.assertEqual(sim.tracer.trace['value'], [0, 2, 5, 8, 11, 11, 11, 11, 11])
+        self.assertEqual(sim.tracer.trace['done'],  [0, 0, 0, 0,  1, 1, 1, 1, 1])
 
     def test_gray_code_counter(self):
         reset = pyrtl.Input(1, "reset")
         i = pyrtl.Input(4, 'i')
-        value = pe.gray_code_counter(reset, i.bitwidth)
+        value, _done = pe.gray_code_counter(reset, i.bitwidth)
         pyrtl.probe(value, 'value')
         sim = pyrtl.Simulation()
         sim.step_multiple({

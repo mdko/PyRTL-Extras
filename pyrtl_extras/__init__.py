@@ -12,6 +12,7 @@ from .format import binf
 
 from .counters import counter
 from .counters import gray_code_counter
+from .counters import rtl_range
 
 from .shifters import lfsr
 
