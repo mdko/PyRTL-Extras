@@ -3,3 +3,4 @@
 scratch
 TODO
 __pycache__/
+.coverage

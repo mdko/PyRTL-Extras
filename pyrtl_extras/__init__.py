@@ -7,6 +7,8 @@ from .core import count_ones
 from .core import count_zeroes
 from .core import count_zeroes_from_end
 from .core import count_zeroes_from_end_fold
+from .core import rtl_slice
+from .core import rtl_index
 
 from .format import binf
 

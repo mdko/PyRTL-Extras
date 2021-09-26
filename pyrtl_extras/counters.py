@@ -7,6 +7,7 @@ from .core import gray_code
 # Use *args to emulate signature of normal Python range
 # TODO emit done on same cycle if `range(...)` would be empty
 # TODO determine if first cycle of counting should be on reset, or cycle after it
+# TODO connect with (or at least document) how to connect it to ready-valid
 def rtl_range(reset, *args, wrap=False):
     """ A counter that counts in a range.
 

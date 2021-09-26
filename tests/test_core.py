@@ -158,5 +158,106 @@ class TestCore(unittest.TestCase):
             [0, 2, 5, 1, 0, 8]
         )
 
+
+class TestBits(unittest.TestCase):
+    def setUp(self):
+        pyrtl.reset_working_block()
+
+    def test_get_single_bit(self):
+        ix = pyrtl.Input(3, 'ix')
+        c = pyrtl.Const("8'b10010011")
+        o = pyrtl.Output(1, 'o')
+        o <<= pe.rtl_index(c, ix)
+        sim = pyrtl.Simulation()
+        sim.step_multiple({'ix': range(7, -1, -1)})
+        self.assertEqual(sim.tracer.trace['o'], [1, 0, 0, 1, 0, 0, 1, 1])
+
+class TestRTLSlice(unittest.TestCase):
+    def setUp(self):
+        pyrtl.reset_working_block()
+
+    def test_get_single_bit(self):
+        ix = pyrtl.Input(3, 'ix')
+        c = pyrtl.Const("8'b10010011")
+        o = pyrtl.Output(1, 'o')
+        o <<= pe.rtl_slice(c, ix, ix+1)
+        sim = pyrtl.Simulation()
+        sim.step_multiple({'ix': range(7, -1, -1)})
+        self.assertEqual(sim.tracer.trace['o'], [1, 0, 0, 1, 0, 0, 1, 1])
+
+    def test_get_range(self):
+        start = pyrtl.Input(2, 'start')
+        end = pyrtl.Input(2, 'end')
+        c = pyrtl.Const("4'b1011")
+        o = pyrtl.Output(4, 'o')
+        o <<= pe.rtl_slice(c, start, end)
+        sim = pyrtl.Simulation()
+        import itertools
+        ranges = list([r for r in itertools.product(range(4), range(4)) if r[0] < r[1]])
+        lefts = [r[0] for r in ranges]
+        rights = [r[1] for r in ranges]
+        sim.step_multiple({'start': lefts, 'end': rights})
+        expected = [int(("1101"[start:end])[::-1], 2) for start, end in ranges]
+        self.assertEqual(sim.tracer.trace['o'], expected)
+
+    def test_get_bits_integer_start(self):
+        value = 0b11010110
+        start = 3
+        end = pyrtl.Input(4, 'end')
+        o = pyrtl.Output(8, 'o')
+        o <<= pe.rtl_slice(value, start, end)
+        sim = pyrtl.Simulation()
+        sim.step_multiple({'end': '45678'})
+        self.assertEqual(sim.tracer.trace['o'], [0b0, 0b10, 0b010, 0b1010, 0b11010])
+
+    def test_get_bits_with_integer_start_and_step_1(self):
+        value = 0b11010110
+        start = 3
+        end = pyrtl.Input(4, 'end')
+        step = 2
+        o = pyrtl.Output(8, 'o')
+        o <<= pe.rtl_slice(value, start, end, step)
+        sim = pyrtl.Simulation()
+        sim.step_multiple({'end': '45678'})
+        self.assertEqual(sim.tracer.trace['o'], [0b0, 0b0, 0b00, 0b00, 0b100])
+
+    def test_get_bits_with_integer_start_and_step_2(self):
+        value = 0b01101010
+        start = 3
+        end = pyrtl.Input(4, 'end')
+        step = 2
+        o = pyrtl.Output(8, 'o')
+        o <<= pe.rtl_slice(value, start, end, step)
+        sim = pyrtl.Simulation()
+        sim.step_multiple({'end': '45678'})
+        self.assertEqual(sim.tracer.trace['o'], [0b1, 0b1, 0b11, 0b11, 0b011])
+
+
+    def test_get_bits_integer_start_end_and_step(self):
+        import warnings
+        value = 0b11010110
+        start = 3
+        end = 7
+        step = 2
+        o = pyrtl.Output(8, 'o')
+        for args in ((start,), (start, end), (start, end, step)):
+            with warnings.catch_warnings(record=True) as w:
+                o <<= pe.rtl_slice(value, *args)
+            self.assertEqual(
+                str(w[0].message),
+                "Integer values (or defaults) were provided as the start and end indices "
+                "and step to `rtl_slice()`. Consider using standard slicing notation instead: `w[start:stop:step]`."
+            )
+
+    def test_get_bits_invalid_number_of_arguments(self):
+        c = pyrtl.Const("8'b10010011")
+        with self.assertRaises(pyrtl.PyrtlError) as ex:
+            _o = pe.rtl_slice(c)
+        self.assertEqual(
+            str(ex.exception),
+            "rtl_slice takes 1 argument (stop), 2 arguments (start, stop), "
+            "or 3 arguments (start, stop, step)."
+        )
+
 if __name__ == "__main__":
     unittest.main()

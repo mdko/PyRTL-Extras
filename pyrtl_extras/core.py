@@ -95,3 +95,93 @@ def count_zeroes_from_end(x, start='msb'):
             rest_to_add = _count(rest, found | ~is_zero)
             return to_add + rest_to_add
     return _count(x, pyrtl.as_wires(False))
+
+def rtl_index(w, ix):
+    """
+
+    Like doing `w[ix]`
+    """
+    return pyrtl.shift_right_logical(w, ix)[0]
+    #return rtl_slice(w, ix, ix+1)
+
+
+def rtl_slice(w, *args):
+    """ Slice into a WireVector using WireVectors as the start (optional), end, and step (optional) values.
+
+    Signatures::
+
+        rtl_slice(w, stop)
+        rtl_slice(w, start, stop[, step])
+
+    :param w: the WireVector or int to index into.
+    :param start: the starting value of the counter, inclusive (default: 0)
+    :param stop: the stopping value of the counter, exclusive (default: len(w))
+    :param step: the step size of the counter (default: 1)
+    :return: a slice of the original WireVector.
+
+    It's probably easiest to think of calling `rtl_slice(w, start, end, step)`
+    as being equivalent to `w[start:end:step]` or `w[slice(start, end, step)]`.
+
+    This function is used to overcome the (very reasonable) limitation that PyRTL imposes on
+    slicing a WireVector: that the slice indices meet the same constraints as normal Python
+    slices.
+
+    Needing to use wires as indices is typically a sign that the object you're
+    indexing into should be a memory, but this function is provided for experimentation
+    nonetheless. Note that this will create a large series of muxes.
+    """
+    # Note: there is currently no meaningful way to dynamically check and report that end > start
+
+    # TODO handle if negative, like normal slices allow
+
+    w = pyrtl.as_wires(w)
+
+    start, stop, step = None, None, None
+    if len(args) == 1:
+        stop = args[0]
+    elif len(args) == 2:
+        start, stop = args
+    elif len(args) == 3:
+        start, stop, step = args
+    else:
+        raise pyrtl.PyrtlError(
+            "rtl_slice takes 1 argument (stop), 2 arguments (start, stop), "
+            "or 3 arguments (start, stop, step)."
+        )
+
+    if start is None:
+        start = 0
+    if stop is None:
+        stop = w.bitwidth
+    if step is None:
+        step = 1
+
+    if all(isinstance(x, int) for x in (start, stop, step)):
+        import warnings
+        warnings.warn(
+            "Integer values (or defaults) were provided as the start and end indices "
+            "and step to `rtl_slice()`. Consider using standard slicing notation instead: "
+            "`w[start:stop:step]`."
+        )
+
+    # Instead of just making them all wires via as_wires,
+    # we can be smarter and more efficient by using slice nets when possible.
+    if isinstance(start, int):
+        w = w[start:]
+    else:
+        w = pyrtl.shift_right_logical(w, start)
+
+    if isinstance(stop, int):
+        w = w[:stop]
+    else:
+        count = stop - start
+        mask = pyrtl.shift_left_logical(pyrtl.Const(1, w.bitwidth), count) - 1
+        w = w & mask
+
+    if isinstance(step, int):
+        w = w[::step]
+    else:
+        # TODO need to create as mask, dynamically, in this single cycle...
+        raise NotImplementedError("rtl_slice with WireVector step not yet implemented")
+
+    return w
