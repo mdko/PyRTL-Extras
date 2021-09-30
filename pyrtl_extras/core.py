@@ -130,7 +130,8 @@ def rtl_slice(w, *args):
     indexing into should be a memory, but this function is provided for experimentation
     nonetheless. Note that this will create a large series of muxes.
     """
-    # Note: there is currently no meaningful way to dynamically check and report that end > start
+    # Note: there is currently no meaningful way to dynamically check/report errors like
+    # step being 0.
 
     # TODO handle if negative, like normal slices allow
 

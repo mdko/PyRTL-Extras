@@ -25,3 +25,5 @@ from .floating_point import fp_add
 from .floating_point import float_to_fp
 from .floating_point import fp_to_float
 from .floating_point import float_in_range
+
+from .meta import *

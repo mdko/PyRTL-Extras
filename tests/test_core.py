@@ -232,6 +232,17 @@ class TestRTLSlice(unittest.TestCase):
         sim.step_multiple({'end': '45678'})
         self.assertEqual(sim.tracer.trace['o'], [0b1, 0b1, 0b11, 0b11, 0b011])
 
+    @unittest.skip("Skip!")
+    def test_get_bits_with_integer_start_and_wire_step(self):
+        value = 0b01101010
+        start = 3
+        end = pyrtl.Input(4, 'end')
+        step = pyrtl.Input(2, 'step')
+        o = pyrtl.Output(8, 'o')
+        o <<= pe.rtl_slice(value, start, end, step)
+        sim = pyrtl.Simulation()
+        sim.step_multiple({'end': '45678', 'step': '12112'})
+        self.assertEqual(sim.tracer.trace['o'], [0b1, 0b1, 0b11, 0b11, 0b011])
 
     def test_get_bits_integer_start_end_and_step(self):
         import warnings
