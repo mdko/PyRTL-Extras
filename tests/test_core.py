@@ -176,7 +176,7 @@ class TestRTLSlice(unittest.TestCase):
     def setUp(self):
         pyrtl.reset_working_block()
 
-    def test_get_single_bit(self):
+    def test_rtl_slice_returns_single_bit(self):
         ix = pyrtl.Input(3, 'ix')
         c = pyrtl.Const("8'b10010011")
         o = pyrtl.Output(1, 'o')
@@ -185,7 +185,7 @@ class TestRTLSlice(unittest.TestCase):
         sim.step_multiple({'ix': range(7, -1, -1)})
         self.assertEqual(sim.tracer.trace['o'], [1, 0, 0, 1, 0, 0, 1, 1])
 
-    def test_get_range(self):
+    def test_rtl_slice_returns_range(self):
         start = pyrtl.Input(2, 'start')
         end = pyrtl.Input(2, 'end')
         c = pyrtl.Const("4'b1011")
@@ -200,7 +200,7 @@ class TestRTLSlice(unittest.TestCase):
         expected = [int(("1101"[start:end])[::-1], 2) for start, end in ranges]
         self.assertEqual(sim.tracer.trace['o'], expected)
 
-    def test_get_bits_integer_start(self):
+    def test_rtl_slice_integer_start(self):
         value = 0b11010110
         start = 3
         end = pyrtl.Input(4, 'end')
@@ -210,7 +210,7 @@ class TestRTLSlice(unittest.TestCase):
         sim.step_multiple({'end': '45678'})
         self.assertEqual(sim.tracer.trace['o'], [0b0, 0b10, 0b010, 0b1010, 0b11010])
 
-    def test_get_bits_with_integer_start_and_step_1(self):
+    def test_rtl_slice_with_integer_start_and_step_1(self):
         value = 0b11010110
         start = 3
         end = pyrtl.Input(4, 'end')
@@ -221,7 +221,7 @@ class TestRTLSlice(unittest.TestCase):
         sim.step_multiple({'end': '45678'})
         self.assertEqual(sim.tracer.trace['o'], [0b0, 0b0, 0b00, 0b00, 0b100])
 
-    def test_get_bits_with_integer_start_and_step_2(self):
+    def test_rtl_slice_with_integer_start_and_step_2(self):
         value = 0b01101010
         start = 3
         end = pyrtl.Input(4, 'end')
@@ -232,19 +232,30 @@ class TestRTLSlice(unittest.TestCase):
         sim.step_multiple({'end': '45678'})
         self.assertEqual(sim.tracer.trace['o'], [0b1, 0b1, 0b11, 0b11, 0b011])
 
-    @unittest.skip("Skip!")
-    def test_get_bits_with_integer_start_and_wire_step(self):
+    def test_rtl_slice_with_integer_start_and_wire_step(self):
         value = 0b01101010
         start = 3
         end = pyrtl.Input(4, 'end')
-        step = pyrtl.Input(2, 'step')
+        step = pyrtl.Const(2, signed=True)
         o = pyrtl.Output(8, 'o')
         o <<= pe.rtl_slice(value, start, end, step)
         sim = pyrtl.Simulation()
-        sim.step_multiple({'end': '45678', 'step': '12112'})
+        sim.step_multiple({'end': '45678'})
         self.assertEqual(sim.tracer.trace['o'], [0b1, 0b1, 0b11, 0b11, 0b011])
 
-    def test_get_bits_integer_start_end_and_step(self):
+    def test_rtl_slice_all_wire_arguments(self):
+        o = pe.rtl_slice(
+            pyrtl.Const(0b10110010),
+            pyrtl.Const(2),  # start (inclusive)
+            pyrtl.Const(8),  # end (exclusive)
+            pyrtl.Const(3, signed=True)   # step
+        )
+        pyrtl.probe(o, 'o')
+        sim = pyrtl.Simulation()
+        sim.step({})
+        self.assertEqual(sim.tracer.trace['o'], [0b10])
+
+    def test_rtl_slice_integer_start_end_and_step(self):
         import warnings
         value = 0b11010110
         start = 3
@@ -260,7 +271,47 @@ class TestRTLSlice(unittest.TestCase):
                 "and step to `rtl_slice()`. Consider using standard slicing notation instead: `w[start:stop:step]`."
             )
 
-    def test_get_bits_invalid_number_of_arguments(self):
+    @unittest.skip("negative start of slice is unimplemented")
+    def test_rtl_slice_negative_start_1(self):
+        value = pyrtl.Input(8, 'value')
+        start = pyrtl.Const(-1, signed=True)
+        o = pyrtl.Output(8, 'o')
+        o <<= pe.rtl_slice(value, start, None, None)
+        sim = pyrtl.Simulation()
+        for v in range(value.bitmask + 1):
+            sim.step({'value': v})
+            self.assertEqual(sim.inspect('o'), int(bin(v)[2:].zfill(o.bitwidth)[0], 2))
+
+    def test_rtl_slice_negative_step_1(self):
+        # Basically just reverses...
+        i = pyrtl.Input(8, 'i')
+        o = pyrtl.Output(8, 'o')
+        o <<= pe.rtl_slice(i, None, None, pyrtl.Const(-1, signed=True))
+        sim = pyrtl.Simulation()
+        for v in range(0, i.bitmask + 1):
+            sim.step({'i': v})
+            self.assertEqual(sim.inspect('o'), int(bin(v)[2:].zfill(o.bitwidth)[::-1], 2))
+
+    def test_rtl_slice_negative_step_2(self):
+        i = pyrtl.Input(8, 'i')
+        o = pyrtl.Output(8, 'o')
+        o <<= pe.rtl_slice(i, None, None, pyrtl.Const(-2, signed=True))
+        sim = pyrtl.Simulation()
+        for v in range(0, i.bitmask + 1):
+            sim.step({'i': v})
+            self.assertEqual(sim.inspect('o'), int(bin(v)[2:].zfill(o.bitwidth)[::2][::-1], 2))
+
+    def test_rtl_slice_negative_step_n(self):
+        step = pyrtl.Input(5, 'step')
+        o = pyrtl.Output(16, 'o')
+        v = pyrtl.Const(0b1101011000101001, name='v')
+        o <<= pe.rtl_slice(v, None, None, step)
+        sim = pyrtl.Simulation()
+        for s in range(-16, 0):
+            sim.step({'step': pyrtl.formatted_str_to_val(str(s), 's' + str(step.bitwidth))})
+            self.assertEqual(sim.inspect('o'), int(bin(v.val)[2:].zfill(o.bitwidth)[::-s][::-1], 2))
+
+    def test_rtl_slice_invalid_number_of_arguments(self):
         c = pyrtl.Const("8'b10010011")
         with self.assertRaises(pyrtl.PyrtlError) as ex:
             _o = pe.rtl_slice(c)
@@ -269,6 +320,34 @@ class TestRTLSlice(unittest.TestCase):
             "rtl_slice takes 1 argument (stop), 2 arguments (start, stop), "
             "or 3 arguments (start, stop, step)."
         )
+
+
+class TestHelpers(unittest.TestCase):
+    def setUp(self):
+        pyrtl.reset_working_block()
+
+    def test_bitwidth_for_index(self):
+        self.assertEqual(pe.bitwidth_for_index(pyrtl.WireVector(2)), 1)  # bits 0 - 1
+        self.assertEqual(pe.bitwidth_for_index(pyrtl.WireVector(3)), 2)  # bits 0 - 2
+        self.assertEqual(pe.bitwidth_for_index(pyrtl.WireVector(4)), 2)  # bits 0 - 3
+        self.assertEqual(pe.bitwidth_for_index(pyrtl.WireVector(5)), 3)  # bits 0 - 4
+        self.assertEqual(pe.bitwidth_for_index(pyrtl.WireVector(6)), 3)  # bits 0 - 5
+        self.assertEqual(pe.bitwidth_for_index(pyrtl.WireVector(7)), 3)  # bits 0 - 6
+        self.assertEqual(pe.bitwidth_for_index(pyrtl.WireVector(8)), 3)  # bits 0 - 7
+        self.assertEqual(pe.bitwidth_for_index(pyrtl.WireVector(9)), 4)  # bits 0 - 8
+        self.assertEqual(pe.bitwidth_for_index(pyrtl.WireVector(15)), 4)  # bits 0 - 14
+        self.assertEqual(pe.bitwidth_for_index(pyrtl.WireVector(16)), 4)  # bits 0 - 15
+
+    def test_negate(self):
+        i = pyrtl.Input(8, 'i')
+        o = pyrtl.Output(name='o')
+        o <<= pe.negate(i)
+        sim = pyrtl.Simulation()
+        for v in range(-128, 128):
+            sim.step({
+                'i': pyrtl.formatted_str_to_val(str(v), 's8')
+            })
+            self.assertEqual(pyrtl.val_to_signed_integer(sim.inspect('o'), o.bitwidth), -v)
 
 if __name__ == "__main__":
     unittest.main()

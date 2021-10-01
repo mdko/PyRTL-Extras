@@ -11,6 +11,11 @@ from .core import gray_code
 def rtl_range(reset, *args, wrap=False):
     """ A counter that counts in a range.
 
+    Signatures::
+
+        rtl_range(reset, stop, wrap=False)
+        rtl_range(reset, start, stop[, step], wrap=False)
+
     :param reset: when to reset (i.e. "start") the counter
     :param start: the starting value of the counter (inclusive)
     :param stop: the stopping value of the counter (exclusive)
