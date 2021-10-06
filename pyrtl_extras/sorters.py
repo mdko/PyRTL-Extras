@@ -50,7 +50,8 @@ class _BitonicSorter:
             return args
         else:
             upper, lower = self.split(*args)
-            new_upper, new_lower = self.bitonic_helper(*upper), self.bitonic_helper(*lower)
+            new_upper = self.bitonic_helper(*upper)
+            new_lower = self.bitonic_helper(*lower)
             return self.block(*new_upper + new_lower)
 
 
