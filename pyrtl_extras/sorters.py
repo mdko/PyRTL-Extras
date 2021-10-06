@@ -21,16 +21,16 @@ class _BitonicSorter:
 
     def cleaner(self, *args):
         upper, lower = self.split(*args)
-        res = list(map(lambda t: self.comp(*t), zip(upper, lower)))
-        new_upper = tuple(map(lambda t: t[0], res))
-        new_lower = tuple(map(lambda t: t[1], res))
+        res = [self.comp(*t) for t in zip(upper, lower)]
+        new_upper = tuple(t[0] for t in res)
+        new_lower = tuple(t[1] for t in res)
         return new_upper, new_lower
 
     def crossover(self, *args):
         upper, lower = self.split(*args)
-        res = list(map(lambda t: self.comp(*t), zip(upper, lower[::-1])))
-        new_upper = tuple(map(lambda t: t[0], res))
-        new_lower = tuple(map(lambda t: t[1], res[::-1]))
+        res = [self.comp(*t) for t in zip(upper, lower[::-1])]
+        new_upper = tuple(t[0] for t in res)
+        new_lower = tuple(t[1] for t in res[::-1])
         return new_upper, new_lower
 
     def merge_network(self, *args):
