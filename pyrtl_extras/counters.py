@@ -3,6 +3,7 @@ from pyrtl.pyrtlexceptions import PyrtlError
 
 from .core import gray_code
 
+
 # def rtl_range(reset, start=0, stop=None, step=1, wrap=False):
 # Use *args to emulate signature of normal Python range
 # TODO emit done on same cycle if `range(...)` would be empty
@@ -25,9 +26,10 @@ def rtl_range(reset, *args, wrap=False):
     :return Tuple[Wire, Wire]: the counter value, and whether the current value is the
         highest it can be without exceeding the stopping value (i.e. if it's "done" counting)
 
-    Protocol notes: The last value produced by rtl_range() is produced on the same cycle `done` goes high
-    for the first time. `done` stays high until `reset` is asserted again. If `done` is calculated
-    to be high at the same time `reset` is asserted high, that means there is nothing in the range.
+    Protocol notes: The last value produced by rtl_range() is produced on the same cycle `done`
+    goes high for the first time. `done` stays high until `reset` is asserted again. If `done` is
+    calculated to be high at the same time `reset` is asserted high, that means there is nothing
+    in the range.
 
     This should generally behave like a normal Python `range` function, with the exception
     of needing a `reset` wire to know when to reset (i.e. start) the counter. So it should
@@ -50,9 +52,9 @@ def rtl_range(reset, *args, wrap=False):
             "or 3 arguments (start, stop, step)."
         )
 
-    start = pyrtl.as_wires(start, signed=True)
-    stop = pyrtl.as_wires(stop, signed=True)
-    step = pyrtl.as_wires(step, signed=True)
+    start = pyrtl.as_wires(start, signed=True)  # TODO use normal PyRTL (or use explicit bitwidth)
+    stop = pyrtl.as_wires(stop, signed=True)  # TODO use normal PyRTL (or use explicit bitwidth)
+    step = pyrtl.as_wires(step, signed=True)  # TODO use normal PyRTL (or use explicit bitwidth)
     reset = pyrtl.as_wires(reset)
     wrap = pyrtl.as_wires(wrap)
 
@@ -88,6 +90,7 @@ def rtl_range(reset, *args, wrap=False):
             cnt.next |= start
     return cnt, done
 
+
 def counter(reset, bitwidth=None, max=None, init=0, wrap_on_overflow=True):
     """ Standard counter that counts up.
 
@@ -121,6 +124,7 @@ def counter(reset, bitwidth=None, max=None, init=0, wrap_on_overflow=True):
     # max + 1 because the stop value is inclusive
     return rtl_range(reset, init, max + 1, 1, wrap=wrap_on_overflow)
 
+
 def down_counter(reset, bitwidth=None, init=None, min=0, wrap_on_underflow=True):
     """ Counter that counts down.
 
@@ -152,7 +156,7 @@ def down_counter(reset, bitwidth=None, init=None, min=0, wrap_on_underflow=True)
         init = 2 ** bitwidth - 1
 
     # min - 1 because the stop value is exclusive
-    return rtl_range(reset, init, min-1, -1, wrap=wrap_on_underflow)
+    return rtl_range(reset, init, min - 1, -1, wrap=wrap_on_underflow)
 
 
 def gray_code_counter(reset, bitwidth):

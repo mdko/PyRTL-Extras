@@ -1,5 +1,6 @@
 import pyrtl
 
+
 class _BitonicSorter:
     """ Only created this class to store the `signed` attribute
     because I don't want to pass it around to all the helpers...
@@ -51,6 +52,7 @@ class _BitonicSorter:
             upper, lower = self.split(*args)
             new_upper, new_lower = self.bitonic_helper(*upper), self.bitonic_helper(*lower)
             return self.block(*new_upper + new_lower)
+
 
 def bitonic_sort(*args, signed=False):
     if len(args) == 0:

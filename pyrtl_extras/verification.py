@@ -2,8 +2,9 @@ import subprocess
 import os
 import tempfile
 from inspect import signature
-import itertools 
+import itertools
 import pyrtl
+
 
 def equivalent_comb_via_sim(f1, f2, bitwidths, **kwargs):
     """ Brute-force test two functions for equivalence by generating all possible values
@@ -36,12 +37,12 @@ def equivalent_comb_via_sim(f1, f2, bitwidths, **kwargs):
         out1 = (out1,)
     if not isinstance(out2, tuple):
         out2 = (out2,)
-    
+
     assert len(out1) == len(out2), "Both functions should return the same number of values."
 
     for n, o in enumerate(out1):
         pyrtl.probe(o, f"f1_out{n}")
-    
+
     for n, o in enumerate(out2):
         pyrtl.probe(o, f"f2_out{n}")
 
@@ -63,11 +64,13 @@ def equivalent_comb_via_sim(f1, f2, bitwidths, **kwargs):
             v2 = sim.inspect(o2)
             if v1 != v2:
                 print(f"{v1} != {v2} for input {input} (step #{stepn})")
-    
-    #sim.tracer.render_trace()
+
+    # sim.tracer.render_trace()
+
 
 def equivalent_seq_via_simulation(f1, f2, bitwidths, nsteps=None, **kwargs):
     pass
+
 
 def equivalent_seq_via_cosa(f1, f2, bitwidths, **kwargs):
     """ Check if two sequential circuits are equivalent by checking in CoSA """
@@ -79,7 +82,8 @@ def equivalent_seq_via_cosa(f1, f2, bitwidths, **kwargs):
             elif callable(f):
                 b = pyrtl.Block()
                 with pyrtl.set_working_block(b):
-                    arg_wires = [pyrtl.Input(bitwidth=bw, name='in%d' % i) for i, bw in enumerate(bitwidths)]
+                    arg_wires = [pyrtl.Input(bitwidth=bw, name='in%d' % i) for
+                                 i, bw in enumerate(bitwidths)]
                     out = f(*arg_wires, **kwargs)
                     if not isinstance(out, tuple):
                         out = (out,)
@@ -87,7 +91,8 @@ def equivalent_seq_via_cosa(f1, f2, bitwidths, **kwargs):
                         pyrtl.probe(o, f"out{n}")
                 return b
             else:
-                raise pyrtl.PyrtlError("Expected a block or function to instantiate, got %s" % str(type(f)))
+                raise pyrtl.PyrtlError(
+                    "Expected a block or function to instantiate, got %s" % str(type(f)))
 
         b = instantiate()
         tmp_vd, tmp_verilog_path = tempfile.mkstemp(prefix='pyrtl_verilog', suffix='.v', text=True)
@@ -95,7 +100,7 @@ def equivalent_seq_via_cosa(f1, f2, bitwidths, **kwargs):
             pyrtl.output_to_verilog(f, block=b)
 
         return tmp_vd, tmp_verilog_path
-        
+
     vfd1, vf1 = to_verilog(f1)
     vfd2, vf2 = to_verilog(f2)
 
@@ -105,9 +110,9 @@ def equivalent_seq_via_cosa(f1, f2, bitwidths, **kwargs):
             "--equal-to", vf2 + "[toplevel]",
             "--abstract-clock",
             "--zero-init",
-    #        "--init outputs/tmp.init",
+            # "--init outputs/tmp.init",
             "--verification", "equivalence", "--prove", "-k", "10",
-        ]) #, capture_output=True, text=True)
+        ])  # , capture_output=True, text=True)
     except:
         os.close(vfd1)
         os.close(vfd2)

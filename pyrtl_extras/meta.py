@@ -2,6 +2,7 @@ import inspect
 import pyrtl
 from collections import namedtuple
 
+
 def io_wrap(*args, **kwargs):
     """ Wrap a function by instantiating it and connecting its arguments to Input wires
     and its return values to Output wires.
@@ -20,17 +21,20 @@ def io_wrap(*args, **kwargs):
         via a WV* class annotation.
     :param outputs: a list of the form 'name[/size] name[/size]', where size is optional.
         If '/size' is not given, then the Output wire will be the same size as the corresponding
-        return wirevector from the function to which it connects.  The 'name' portion is not optional.
+        return wirevector from the function to which it connects.  The 'name' portion is not
+        optional.
     :param **kwargs: non-WireVector arguments to pass directly to the function.
-    :return: a namedtuple whose fields are the Input and Output wires created, and which are accessible
-        via their names.
+    :return: a namedtuple whose fields are the Input and Output wires created, and which are
+        accessible via their names.
 
     A ton of caveats:
-    - Every optional (i.e. keyword) argument must be explicitly supplied for this to work right now.
-    - It is expected that the keyword arguments are *not* wirevectors; Inputs will not be created for them.
-    - For non-keyword (positional) arguments that aren't wirevectors, to avoid them accidentally being
-      assumed as input wires, pass in the function partially applied with the scalar values already
-      applied, so the positional arguments are only wires
+    - Every optional (i.e. keyword) argument must be explicitly supplied for this to work
+      right now.
+    - It is expected that the keyword arguments are *not* wirevectors; Inputs will not be created
+      for them.
+    - For non-keyword (positional) arguments that aren't wirevectors, to avoid them accidentally
+      being assumed as input wires, pass in the function partially applied with the scalar values
+      already applied, so the positional arguments are only wires
     - Probably many more I'm forgetting
     """
 
@@ -100,8 +104,10 @@ def io_wrap(*args, **kwargs):
     IOWrapper = namedtuple('IOWrapper', names)
     return IOWrapper(*args + rets)
 
+
 class WVType:
     bitwidth = None
+
 
 # This creates 128 types, named WV1, WV2, ... WV128,
 # representing the bitwidths 1, 2, ..., 128 and useful for adding annotations

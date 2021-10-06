@@ -12,6 +12,7 @@ def gray_code(n):
     n = pyrtl.as_wires(n)
     return n ^ n[1:]
 
+
 def signed_sub(a, b):
     """ Return a WireVector for result of signed subtraction.
 
@@ -35,7 +36,9 @@ def signed_sub(a, b):
     # add and truncate to the correct length
     return (ext_a - ext_b)[0:result_len]
 
+
 CheckedResult = collections.namedtuple('CheckedResult', ['result', 'overflow'])
+
 
 def checked_sub(a, b, bitwidth):
     res = signed_sub(a, b).truncate(bitwidth)
@@ -46,33 +49,37 @@ def checked_sub(a, b, bitwidth):
     cond2 = pyrtl.signed_lt(a, 0) & pyrtl.signed_ge(b, 0) & pyrtl.signed_ge(res, 0)
     return CheckedResult(res, cond1 | cond2)
 
+
 def difference(x, y):
     """ Returns max(x, y) - min(x, y) [taking signedness into account] """
     # Doing this verbosely because I only want one call to signed_sub.
     x_gt_y = pyrtl.signed_gt(x, y)
-    h = pyrtl.select(x_gt_y, x, y)
-    l = pyrtl.select(x_gt_y, y, x)
-    return signed_sub(h, l)
+    high = pyrtl.select(x_gt_y, x, y)
+    llow = pyrtl.select(x_gt_y, y, x)
+    return signed_sub(high, low)
+
 
 def negate(x):
     """ Negate a number (a la twos complement), not invert """
     # Use this to automatically get correct size out (~x + 1 doesn't get it automatically)
     return signed_sub(0, x)
 
+
 def count_ones(w):
     """ Count the number of one bits in a wire """
     return reduce(operator.add, w)
     # Could also do this:
-    #return pyrtl.tree_reduce(operator.add, w)
+    # return pyrtl.tree_reduce(operator.add, w)
+
 
 def count_zeroes(w):
     return len(w) - count_ones(w)
+
 
 # Two versions of the same function:
 #   - count_zeroes_from_end_fold()
 #   - count_zeroes_from_end()
 # Both are here just to see difference in programming complexity and generated netlist complexity
-
 def count_zeroes_from_end_fold(x, start='msb'):
     def f(accum, x):
         found, count = accum
@@ -80,10 +87,12 @@ def count_zeroes_from_end_fold(x, start='msb'):
         to_add = ~found & is_zero
         count = count + to_add
         return (found | ~is_zero, count)
-    l = x[::-1] if start == 'msb' else x
-    return reduce(f, l, (pyrtl.as_wires(False), 0))[1]
+    xs = x[::-1] if start == 'msb' else x
+    return reduce(f, xs, (pyrtl.as_wires(False), 0))[1]
 
-# NOTE: this is essentially a fold, so we could probably use the stdlib's functools.reduce function (see above)
+
+# NOTE: this is essentially a fold, so we could probably use the stdlib's
+# functools.reduce function (see above)
 def count_zeroes_from_end(x, start='msb'):
     if start not in ('msb', 'lsb'):
         raise pyrtl.PyrtlError('Invalid start parameter')
@@ -99,6 +108,7 @@ def count_zeroes_from_end(x, start='msb'):
             rest_to_add = _count(rest, found | ~is_zero)
             return to_add + rest_to_add
     return _count(x, pyrtl.as_wires(False))
+
 
 def bitwidth_for_index(w):
     """ Returns the number of bits needed to index every bit of w.
@@ -117,6 +127,7 @@ def bitwidth_for_index(w):
     """
     return int(math.floor(math.log2(w.bitwidth - 1)) + 1)
 
+
 def rtl_index(w, ix):
     """
 
@@ -124,10 +135,12 @@ def rtl_index(w, ix):
     """
     return pyrtl.shift_right_logical(w, ix)[0]
     # Could also do this:
-    #return rtl_slice(w, ix, ix+1)
+    # return rtl_slice(w, ix, ix+1)
+
 
 def rtl_slice(w, *args):
-    """ Slice into a WireVector using WireVectors as the start (optional), end, and step (optional) values.
+    """ Slice into a WireVector using WireVectors as the start (optional), end, and
+    step (optional) values.
 
     Signatures::
 
@@ -135,10 +148,12 @@ def rtl_slice(w, *args):
         rtl_slice(w, start, stop[, step])
 
     :param w: the WireVector or int to index into.
-    :param start: the starting value of the counter, inclusive (default: 0)
-    :param stop: the stopping value of the counter, exclusive (default: len(w))
-    :param step: the step size of the counter (default: 1); this will be treated
-        as *signed* if a WireVector
+    :param start: the starting value of the counter, inclusive (default: 0);
+        this is treated as *signed*.
+    :param stop: the stopping value of the counter, exclusive (default: len(w));
+        this is treated as *signed*.
+    :param step: the step size of the counter (default: 1);
+        this is treated as *signed*.
     :return: a slice of the original WireVector, i.e. a subsection of the
         original wire, possibly with some skipped bits depending on the value of step.
         The width of the slice totally depends on the argument values.
@@ -168,7 +183,7 @@ def rtl_slice(w, *args):
             pyrtl.Const(8),  # end (exclusive)
             pyrtl.Const(3)   # step
         ) == 0b10
-        
+
         From...
          end (exclusive) to...
          |     start (inclusive)
@@ -179,8 +194,6 @@ def rtl_slice(w, *args):
             |  |
         get every 3rd bit, and concatenate to, get 0b10
     """
-
-    # TODO handle if negative, like normal slices allow
 
     w = pyrtl.as_wires(w)
 
@@ -217,19 +230,38 @@ def rtl_slice(w, *args):
     if isinstance(start, int):
         w = w[start:]
     else:
-        w = pyrtl.shift_right_logical(w, start)
+        shift_amount = pyrtl.select(
+            pyrtl.signed_lt(start, 0),
+            pyrtl.signed_add(w.bitwidth, start),
+            start
+        )
+        w = pyrtl.shift_right_logical(w, shift_amount)
 
     if isinstance(stop, int):
         w = w[:stop]
     else:
-        count = stop - start
+        # Dev note: this is either wrong, or is correct and can be simplified...
+        # Make start_c a wire so we can ensure its signed properly (rather than
+        # allow it to be coerced unsigned in the arithmetic below); ensuring it's
+        # signed is done by passing in an explicit bitwidth to `as_wires()`.
+        start_c = pyrtl.as_wires(start, bitwidth=(
+            start.bitwidth if isinstance(start, pyrtl.WireVector) else stop.bitwidth)
+        )
+        count = pyrtl.select(
+            pyrtl.signed_lt(stop, 0),
+            pyrtl.signed_add(w.bitwidth, stop),
+            pyrtl.select(
+                pyrtl.signed_lt(start_c, 0),
+                stop,
+                stop - start_c,
+            )
+        )
         mask = pyrtl.shift_left_logical(pyrtl.Const(1, w.bitwidth), count) - 1
         w = w & mask
 
     if isinstance(step, int):
         w = w[::step]  # ValueError if step is 0
     else:
-        # From here...
         wn = pyrtl.WireVector(w.bitwidth)
         stepn = pyrtl.WireVector(step.bitwidth)
 
@@ -240,10 +272,11 @@ def rtl_slice(w, *args):
             with pyrtl.otherwise:
                 stepn |= step
                 wn |= w
-        # ...to here is for dealing with negative step values. It's highly experimental :)
 
-        stepn = stepn if 2**stepn.bitwidth >= wn.bitwidth else stepn.zero_extended(bitwidth_for_index(wn))
-    
+        stepn = stepn if 2**stepn.bitwidth >= wn.bitwidth else (
+            stepn.zero_extended(bitwidth_for_index(wn))
+        )
+
         w = pyrtl.mux(
             stepn,
             pyrtl.Const(0),  # A step of 0 is invalid; report that with error line later

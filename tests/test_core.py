@@ -177,7 +177,7 @@ class TestRTLSlice(unittest.TestCase):
         pyrtl.reset_working_block()
 
     def test_rtl_slice_returns_single_bit(self):
-        ix = pyrtl.Input(3, 'ix')
+        ix = pyrtl.Input(4, 'ix')
         c = pyrtl.Const("8'b10010011")
         o = pyrtl.Output(1, 'o')
         o <<= pe.rtl_slice(c, ix, ix+1)
@@ -186,68 +186,58 @@ class TestRTLSlice(unittest.TestCase):
         self.assertEqual(sim.tracer.trace['o'], [1, 0, 0, 1, 0, 0, 1, 1])
 
     def test_rtl_slice_returns_range(self):
-        start = pyrtl.Input(2, 'start')
-        end = pyrtl.Input(2, 'end')
+        start = pyrtl.Input(3, 'start')
+        stop = pyrtl.Input(3, 'stop')
         c = pyrtl.Const("4'b1011")
         o = pyrtl.Output(4, 'o')
-        o <<= pe.rtl_slice(c, start, end)
+        o <<= pe.rtl_slice(c, start, stop)
         sim = pyrtl.Simulation()
         import itertools
         ranges = list([r for r in itertools.product(range(4), range(4)) if r[0] < r[1]])
         lefts = [r[0] for r in ranges]
         rights = [r[1] for r in ranges]
-        sim.step_multiple({'start': lefts, 'end': rights})
-        expected = [int(("1101"[start:end])[::-1], 2) for start, end in ranges]
+        sim.step_multiple({'start': lefts, 'stop': rights})
+        expected = [int(("1101"[start:stop])[::-1], 2) for start, stop in ranges]
         self.assertEqual(sim.tracer.trace['o'], expected)
 
     def test_rtl_slice_integer_start(self):
-        value = 0b11010110
-        start = 3
-        end = pyrtl.Input(4, 'end')
+        stop = pyrtl.Input(5, 'stop')
         o = pyrtl.Output(8, 'o')
-        o <<= pe.rtl_slice(value, start, end)
+        o <<= pe.rtl_slice(0b11010010, 3, stop)
         sim = pyrtl.Simulation()
-        sim.step_multiple({'end': '45678'})
+        sim.step_multiple({'stop': '45678'})
         self.assertEqual(sim.tracer.trace['o'], [0b0, 0b10, 0b010, 0b1010, 0b11010])
 
     def test_rtl_slice_with_integer_start_and_step_1(self):
-        value = 0b11010110
-        start = 3
-        end = pyrtl.Input(4, 'end')
-        step = 2
+        stop = pyrtl.Input(4, 'stop')
         o = pyrtl.Output(8, 'o')
-        o <<= pe.rtl_slice(value, start, end, step)
+        o <<= pe.rtl_slice(0b11010110, 3, stop, 2)
         sim = pyrtl.Simulation()
-        sim.step_multiple({'end': '45678'})
+        sim.step_multiple({'stop': '45678'})
         self.assertEqual(sim.tracer.trace['o'], [0b0, 0b0, 0b00, 0b00, 0b100])
 
     def test_rtl_slice_with_integer_start_and_step_2(self):
-        value = 0b01101010
-        start = 3
-        end = pyrtl.Input(4, 'end')
-        step = 2
+        stop = pyrtl.Input(4, 'stop')
         o = pyrtl.Output(8, 'o')
-        o <<= pe.rtl_slice(value, start, end, step)
+        o <<= pe.rtl_slice(0b01101010, 3, stop, 2)
         sim = pyrtl.Simulation()
-        sim.step_multiple({'end': '45678'})
+        sim.step_multiple({'stop': '45678'})
         self.assertEqual(sim.tracer.trace['o'], [0b1, 0b1, 0b11, 0b11, 0b011])
 
     def test_rtl_slice_with_integer_start_and_wire_step(self):
-        value = 0b01101010
-        start = 3
-        end = pyrtl.Input(4, 'end')
-        step = pyrtl.Const(2, signed=True)
+        stop = pyrtl.Input(5, 'stop')
+        step = pyrtl.Const(3, signed=True)
         o = pyrtl.Output(8, 'o')
-        o <<= pe.rtl_slice(value, start, end, step)
+        o <<= pe.rtl_slice(0b01101010, 3, stop, step)
         sim = pyrtl.Simulation()
-        sim.step_multiple({'end': '45678'})
-        self.assertEqual(sim.tracer.trace['o'], [0b1, 0b1, 0b11, 0b11, 0b011])
+        sim.step_multiple({'stop': '45678'})
+        self.assertEqual(sim.tracer.trace['o'], [0b1, 0b1, 0b1, 0b11, 0b011])
 
     def test_rtl_slice_all_wire_arguments(self):
         o = pe.rtl_slice(
             pyrtl.Const(0b10110010),
-            pyrtl.Const(2),  # start (inclusive)
-            pyrtl.Const(8),  # end (exclusive)
+            pyrtl.Const(2, signed=True),  # start (inclusive)
+            pyrtl.Const(8, signed=True),  # end (exclusive)
             pyrtl.Const(3, signed=True)   # step
         )
         pyrtl.probe(o, 'o')
@@ -259,10 +249,10 @@ class TestRTLSlice(unittest.TestCase):
         import warnings
         value = 0b11010110
         start = 3
-        end = 7
+        stop = 7
         step = 2
         o = pyrtl.Output(8, 'o')
-        for args in ((start,), (start, end), (start, end, step)):
+        for args in ((start,), (start, stop), (start, stop, step)):
             with warnings.catch_warnings(record=True) as w:
                 o <<= pe.rtl_slice(value, *args)
             self.assertEqual(
@@ -271,16 +261,84 @@ class TestRTLSlice(unittest.TestCase):
                 "and step to `rtl_slice()`. Consider using standard slicing notation instead: `w[start:stop:step]`."
             )
 
-    @unittest.skip("negative start of slice is unimplemented")
-    def test_rtl_slice_negative_start_1(self):
-        value = pyrtl.Input(8, 'value')
-        start = pyrtl.Const(-1, signed=True)
+    def test_rtl_slice_negative_start_various_hardcoded(self):
+        value = pyrtl.Const(0b10011100)
+        start = pyrtl.Input(5, 'start')
         o = pyrtl.Output(8, 'o')
         o <<= pe.rtl_slice(value, start, None, None)
         sim = pyrtl.Simulation()
-        for v in range(value.bitmask + 1):
-            sim.step({'value': v})
-            self.assertEqual(sim.inspect('o'), int(bin(v)[2:].zfill(o.bitwidth)[0], 2))
+
+        sim.step({'start': pyrtl.formatted_str_to_val(str(-1), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b1)  # just bit 7
+
+        sim.step({'start': pyrtl.formatted_str_to_val(str(-2), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b10)  # bits 7, 6
+
+        sim.step({'start': pyrtl.formatted_str_to_val(str(-3), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b100)  # bits 7, 6, 5
+
+        sim.step({'start': pyrtl.formatted_str_to_val(str(-4), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b1001)  # bits 7, 6, 5, 4
+
+        sim.step({'start': pyrtl.formatted_str_to_val(str(-5), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b10011)  # bits 7, 6, 5, 4, 3
+
+        sim.step({'start': pyrtl.formatted_str_to_val(str(-6), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b100111)  # bits 7, 6, 5, 4, 3, 2
+
+        sim.step({'start': pyrtl.formatted_str_to_val(str(-7), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b1001110)  # bits 7, 6, 5, 4, 3, 2, 1
+
+        sim.step({'start': pyrtl.formatted_str_to_val(str(-8), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b10011100)  # bits 7, 6, 5, 4, 3, 2, 1, 0
+
+        # rest should behave the same as step=-8
+        for v in range(-9, -16):
+            sim.step({'start': pyrtl.formatted_str_to_val(str(v), 's5')})
+            self.assertEqual(sim.inspect('o'), 0b10011100)  # bits 7, 6, 5, 4, 3, 2, 1, 0
+
+    def test_rtl_slice_negative_start_n(self):
+        start = pyrtl.Input(5, 'start')
+        o = pyrtl.Output(16, 'o')
+        v = pyrtl.Const(0b1101011000101001, name='v')
+        o <<= pe.rtl_slice(v, start, None, None)
+        sim = pyrtl.Simulation()
+        for s in range(-16, 0):
+            sim.step({'start': pyrtl.formatted_str_to_val(str(s), 's' + str(start.bitwidth))})
+            self.assertEqual(sim.inspect('o'), int(bin(v.val)[2:].zfill(o.bitwidth)[::-1][s::][::-1], 2))
+
+    def test_rtl_slice_negative_end_various_hardcoded(self):
+        value = pyrtl.Const(0b10011101)
+        stop = pyrtl.Input(5, 'stop')
+        o = pyrtl.Output(8, 'o')
+        o <<= pe.rtl_slice(value, None, stop, None)
+        sim = pyrtl.Simulation()
+
+        sim.step({'stop': pyrtl.formatted_str_to_val(str(-1), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b0011101)  # bits 0, 1, 2, 3, 4, 5, 6
+
+        sim.step({'stop': pyrtl.formatted_str_to_val(str(-2), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b011101)  # bits 0, 1, 2, 3, 4, 5
+
+        sim.step({'stop': pyrtl.formatted_str_to_val(str(-3), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b11101)  # bits 0, 1, 2, 3, 4
+
+        sim.step({'stop': pyrtl.formatted_str_to_val(str(-4), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b1101)  # bits 0, 1, 2, 3
+
+        sim.step({'stop': pyrtl.formatted_str_to_val(str(-5), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b101)  # bits 0, 1, 2
+
+        sim.step({'stop': pyrtl.formatted_str_to_val(str(-6), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b01)  # bits 0, 1
+
+        sim.step({'stop': pyrtl.formatted_str_to_val(str(-7), 's5')})
+        self.assertEqual(sim.inspect('o'), 0b1)  # bits 0
+
+        # TODO >= -8 would return an empty list in normal Python
+        # for v in range(-8, -16):
+        #     sim.step({'stop': pyrtl.formatted_str_to_val(str(v), 's5')})
+        #     self.assertEqual(sim.inspect('o'), ...)
 
     def test_rtl_slice_negative_step_1(self):
         # Basically just reverses...
@@ -300,6 +358,60 @@ class TestRTLSlice(unittest.TestCase):
         for v in range(0, i.bitmask + 1):
             sim.step({'i': v})
             self.assertEqual(sim.inspect('o'), int(bin(v)[2:].zfill(o.bitwidth)[::2][::-1], 2))
+
+    def test_rtl_slice_negative_various_hardcoded(self):
+        # Easier to visualize, though the next test does the same thing
+        # with fewer lines.
+        step = pyrtl.Input(5, 'step')
+        o = pyrtl.Output(16, 'o')
+        v = pyrtl.Const(0b1101011000101001, name='v')
+        o <<= pe.rtl_slice(v, None, None, step)
+        sim = pyrtl.Simulation()
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-1', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b1001010001101011)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-2', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b01101001)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-3', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b110111)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-4', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b1001)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-5', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b1111)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-6', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b111)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-7', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b001)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-8', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b01)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-9', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b01)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-10', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b11)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-11', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b01)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-12', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b11)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-13', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b01)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-14', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b01)
+
+        sim.step({'step': pyrtl.formatted_str_to_val('-15', 's5')})
+        self.assertEqual(sim.inspect('o'), 0b11)
 
     def test_rtl_slice_negative_step_n(self):
         step = pyrtl.Input(5, 'step')

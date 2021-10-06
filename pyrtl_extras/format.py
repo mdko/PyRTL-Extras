@@ -18,6 +18,6 @@ def binf(width, max_width):
     def f(x):
         n = bin(x)[2:].zfill(width)
         n = ' ' * (max_width - len(n)) + n
-        by_fours = [n[::-1][i:i+4][::-1] for i in range(0, len(n), 4)][::-1]
+        by_fours = [n[::-1][i:i + 4][::-1] for i in range(0, len(n), 4)][::-1]
         return '0b' + ' '.join(by_fours)
     return f

@@ -36,16 +36,20 @@ _Bitwidth = {
     'quad': 128,
 }
 
+
 def float_in_range(x, precision):
     if precision not in ('half', 'single', 'double', 'quad'):
         raise ValueError("Precision must be one of 'half', 'single', 'double', or 'quad'")
     smallest = 2 ** (1 - _Bias[precision])
-    largest = (2 ** (2 ** _Exponent_bits[precision] - _Bias[precision] - 2)) * (2 - (1 / (2 ** _Fraction_bits[precision])))
+    largest = (2 ** (2 ** _Exponent_bits[precision] - _Bias[precision] - 2)) *\
+              (2 - (1 / (2 ** _Fraction_bits[precision])))
     return abs(x) >= smallest and abs(x) <= largest
+
 
 def zfill_right(x, n):
     return x + '0' * (n - len(x))
-    
+
+
 def float_to_fp(x, precision='single'):
     """ Convert the Python float into an integer,
         whose bitpattern represents the floating point number.
@@ -63,11 +67,11 @@ def float_to_fp(x, precision='single'):
     if math.isinf(x):
         s = '0' if x > 0 else '1'
         return int(s + '1' * _Exponent_bits[precision] + '0' * _Fraction_bits[precision], 2)
-    
+
     # NaN
     if math.isnan(x):
         return int('0' + '1' * _Exponent_bits[precision] + '1' * _Fraction_bits[precision], 2)
-    
+
     if not float_in_range(x, precision):
         raise ValueError("Value out of range for precision")
 
@@ -93,7 +97,7 @@ def float_to_fp(x, precision='single'):
 
 
 def fp_to_float(fp, precision='single'):
-    """ Interpret the bitpattern of fp (an integer) as a 
+    """ Interpret the bitpattern of fp (an integer) as a
         floating point number, and return a Python float
 
     :param fp:
@@ -108,8 +112,8 @@ def fp_to_float(fp, precision='single'):
 
     fp = bin(fp)[2:].zfill(_Bitwidth[precision])
     s = fp[0]
-    e = fp[1:1+_Exponent_bits[precision]]
-    f = fp[1+_Exponent_bits[precision]:]
+    e = fp[1:1 + _Exponent_bits[precision]]
+    f = fp[1 + _Exponent_bits[precision]:]
 
     if e == '0' * _Exponent_bits[precision]:
         if f == '0' * _Fraction_bits[precision]:
@@ -120,12 +124,14 @@ def fp_to_float(fp, precision='single'):
         if f == '0' * _Fraction_bits[precision]:
             return math.inf if s == '0' else -math.inf
         else:
-            return math.nan  # Or float('nan') (Using math.nan permits object comparision, i.e. x is math.nan)
+            # Or float('nan') (Using math.nan permits object comparision, i.e. x is math.nan)
+            return math.nan
 
     ev = 2 ** (int(e, 2) - _Bias[precision])
     fv = 1 + (int(f, 2) / 2 ** _Fraction_bits[precision])
     v = ev * fv
     return v if s == '0' else -v
+
 
 def _fp_get_parts_wv(w, precision):
     if precision == 'half':
@@ -138,6 +144,7 @@ def _fp_get_parts_wv(w, precision):
         return pyrtl.chop(w, 1, _Exponent_bits['quad'], _Fraction_bits['quad'])
     else:
         raise ValueError("Precision must be one of 'half', 'single', 'double', or 'quad'")
+
 
 def fp_add(x, y, precision='single'):
     """
@@ -156,9 +163,9 @@ def fp_add(x, y, precision='single'):
 
     # Exponent difference
     x_gt_y = pyrtl.signed_gt(ex, ey)
-    h = pyrtl.select(x_gt_y, ex, ey)
-    l = pyrtl.select(x_gt_y, ey, ex)
-    sh_amt = signed_sub(h, l)
+    high = pyrtl.select(x_gt_y, ex, ey)
+    low = pyrtl.select(x_gt_y, ey, ex)
+    sh_amt = signed_sub(high, low)
 
     # Shift significand of number with lesser exponent to the right
     significand_x = pyrtl.concat(pyrtl.Const(1, 1), fx)
@@ -189,6 +196,7 @@ def fp_add(x, y, precision='single'):
     # TODO repeat normalization and round until done
     # TODO deal with NaN/Inf/underflow/overflow
 
-    exponent = signed_sub(pyrtl.select(x_gt_y, ey, ex), bits_for_normalize).truncate(_Exponent_bits[precision])
+    exponent = signed_sub(pyrtl.select(x_gt_y, ey, ex),
+                          bits_for_normalize).truncate(_Exponent_bits[precision])
     final = pyrtl.concat(sign, exponent, res)
     return final
