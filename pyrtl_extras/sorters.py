@@ -57,7 +57,7 @@ class _BitonicSorter:
 def bitonic_sort(*args, signed=False):
     if len(args) == 0:
         raise pyrtl.PyrtlError("bitonic_sort requires at least one argument to sort")
-    if len(args) > 1 and len(args) & (len(args) - 1) != 0:
+    if len(args) & (len(args) - 1) != 0:
         raise pyrtl.PyrtlError("number of arguments to bitonic_sort must be a power of 2")
 
     bs = _BitonicSorter(signed=signed)
