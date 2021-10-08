@@ -55,7 +55,7 @@ def difference(x, y):
     # Doing this verbosely because I only want one call to signed_sub.
     x_gt_y = pyrtl.signed_gt(x, y)
     high = pyrtl.select(x_gt_y, x, y)
-    llow = pyrtl.select(x_gt_y, y, x)
+    low = pyrtl.select(x_gt_y, y, x)
     return signed_sub(high, low)
 
 
@@ -230,6 +230,7 @@ def rtl_slice(w, *args):
     if isinstance(start, int):
         w = w[start:]
     else:
+        assert isinstance(start, pyrtl.WireVector)
         shift_amount = pyrtl.select(
             pyrtl.signed_lt(start, 0),
             pyrtl.signed_add(w.bitwidth, start),
@@ -240,6 +241,7 @@ def rtl_slice(w, *args):
     if isinstance(stop, int):
         w = w[:stop]
     else:
+        assert isinstance(stop, pyrtl.WireVector)
         # Dev note: this is either wrong, or is correct and can be simplified...
         # Make start_c a wire so we can ensure its signed properly (rather than
         # allow it to be coerced unsigned in the arithmetic below); ensuring it's
@@ -262,6 +264,7 @@ def rtl_slice(w, *args):
     if isinstance(step, int):
         w = w[::step]  # ValueError if step is 0
     else:
+        assert isinstance(step, pyrtl.WireVector)
         wn = pyrtl.WireVector(w.bitwidth)
         stepn = pyrtl.WireVector(step.bitwidth)
 

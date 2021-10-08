@@ -1,3 +1,6 @@
+# TODO update to taken in the number itself (user can partially apply if they want)
+# TODO use number's width as default for one of the arguments
+# TODO simplify/explain arguments more
 def binf(width, max_width):
     """
     Prints a number in binary with each quartet separated by a space.

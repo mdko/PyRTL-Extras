@@ -6,6 +6,8 @@ import itertools
 import pyrtl
 
 
+# TODO can we using type annotations (see WVType in meta.py) to be able
+# to not take in bitwidths? Or use runtime type information in some way like this?
 def equivalent_comb_via_sim(f1, f2, bitwidths, **kwargs):
     """ Brute-force test two functions for equivalence by generating all possible values
         for each input and comparing the resulting output of each function. Requires
