@@ -11,7 +11,11 @@ from .core import rtl_slice
 from .core import rtl_index
 from .core import bitwidth_for_index
 
+# from .control import rtl_for
+# from .control import rtl_for_range
+
 from .format import binf
+from .format import print_memory
 
 from .counters import counter
 from .counters import gray_code_counter
